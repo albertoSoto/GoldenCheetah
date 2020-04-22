@@ -160,7 +160,7 @@ HomeWindow::HomeWindow(Context *context, QString name, QString /* windowtitle */
     connect(context, SIGNAL(configChanged(qint32)), this, SLOT(configChanged(qint32)));
     //connect(tabbed, SIGNAL(currentChanged(int)), this, SLOT(tabSelected(int)));
     //connect(tabbed, SIGNAL(tabCloseRequested(int)), this, SLOT(removeChart(int)));
-    //connect(tb, SIGNAL(tabMoved(int,int)), this, SLOT(tabMoved(int,int)));
+    connect(chartbar, SIGNAL(itemMoved(int,int)), this, SLOT(tabMoved(int,int)));
     connect(chartbar, SIGNAL(currentIndexChanged(int)), this, SLOT(tabSelected(int)));
     connect(titleEdit, SIGNAL(textChanged(const QString&)), SLOT(titleChanged()));
 
@@ -188,9 +188,11 @@ HomeWindow::rightClick(const QPoint & /*pos*/)
 void
 HomeWindow::addChartFromMenu(QAction*action)
 {
+    // & removed to avoid issues with kde AutoCheckAccelerators
+    QString actionText = QString(action->text()).replace("&", "");
     GcWinID id = GcWindowTypes::None;
     for (int i=0; GcWindows[i].relevance; i++) {
-        if (GcWindows[i].name == action->text()) {
+        if (GcWindows[i].name == actionText) {
             id = GcWindows[i].id;
             break;
         }
@@ -426,18 +428,24 @@ HomeWindow::tabSelected(int index, bool forride)
 void
 HomeWindow::tabMoved(int to, int from)
 {
-    // re-order the tabs
-    GcChartWindow *orig = charts[to];
-    charts[to] = charts[from];
-    charts[from] = orig;
+     GcChartWindow *me = charts.takeAt(from);
+     charts.insert(to, me);
 
-    // re-order the controls
+    // re-order the controls - to reflect new indexes
     controlStack->blockSignals(true);
     QWidget *w = controlStack->widget(from);
     controlStack->removeWidget(w);
     controlStack->insertWidget(to, w);
     controlStack->setCurrentIndex(to);
     controlStack->blockSignals(false);
+
+    // re-order the stack - to reflect new indexes
+    tabbed->blockSignals(true);
+    w = tabbed->widget(from);
+    tabbed->removeWidget(w);
+    tabbed->insertWidget(to, w);
+    tabbed->setCurrentIndex(to);
+    tabbed->blockSignals(false);
 }
 
 void

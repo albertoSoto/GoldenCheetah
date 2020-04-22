@@ -27,15 +27,18 @@
 #include <QToolButton>
 #include <QObject>
 #include <QEvent>
+#include <QPropertyAnimation>
 
 class Context;
-class GcScopeButton;
+class ChartBarItem;
 class GcLabel;
 class ButtonBar;
 
 class ChartBar : public QWidget
 {
     Q_OBJECT
+
+    friend class ::ChartBarItem;
 
 public:
 
@@ -55,27 +58,34 @@ public slots:
     void setCurrentIndex(int index);
     void scrollLeft();
     void scrollRight();
-    void tidy();
+    void tidy(bool setwidth);
     void setChartMenu();
     void menuPopup();
     void configChanged(qint32); // appearance
 
 signals:
     void currentIndexChanged(int);
+    void itemMoved(int from, int to);
+
+protected:
+
+    // dragging needs to work with these
+    QScrollArea *scrollArea;
+    QHBoxLayout *layout;
+    QList<ChartBarItem*> buttons;
 
 private:
+
     void paintBackground(QPaintEvent *);
 
     Context *context;
 
     ButtonBar *buttonBar;
     QToolButton *left, *right; // scrollers, hidden if menu fits
+    QPropertyAnimation *anim; // scroll left and right - animated to show whats happening
     QToolButton *menuButton;
-    QScrollArea *scrollArea;
-    QHBoxLayout *layout;
 
     QFont buttonFont;
-    QVector<GcScopeButton*> buttons;
     QSignalMapper *signalMapper;
 
     QMenu *barMenu, *chartMenu;
@@ -103,4 +113,40 @@ private:
 
 };
 
+class ChartBarItem : public QWidget
+{
+    Q_OBJECT
+
+    public:
+        ChartBarItem(ChartBar *parent);
+        void setText(QString _text) { text = _text; }
+        void setChecked(bool _checked) { checked = _checked; repaint(); }
+        bool isChecked() { return checked; }
+        void setWidth(int x) { setFixedWidth(x); }
+        void setHighlighted(bool x) { highlighted = x; }
+        bool ishighlighted() const { return highlighted; }
+        void setRed(bool x) { red = x; }
+
+        QString text;
+    signals:
+        void clicked(bool);
+
+    public slots:
+        void paintEvent(QPaintEvent *);
+        bool event(QEvent *e);
+
+    private:
+        ChartBar *chartbar;
+
+        // managing dragging of tabs
+        enum { Idle, Click, Clone, Drag } state;
+        QPoint clickpos;
+        int originalindex;
+        int indexPos(int); // calculating drop position
+        ChartBarItem *dragging;
+
+        bool checked;
+        bool highlighted;
+        bool red;
+};
 #endif

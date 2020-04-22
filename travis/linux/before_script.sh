@@ -1,9 +1,11 @@
 #!/bin/bash
 set -ev
-export PATH=/opt/qt59/bin:$PATH
+export PATH=/opt/qt514/bin:$PATH
 
 cp qwt/qwtconfig.pri.in qwt/qwtconfig.pri
 cp src/gcconfig.pri.in src/gcconfig.pri
+# Define GC version string, only for tagged builds
+if [ -n "$TRAVIS_TAG" ]; then echo DEFINES += GC_VERSION=VERSION_STRING >> src/gcconfig.pri; fi
 # user WEBENGINE
 echo DEFINES += NOWEBKIT >> src/gcconfig.pri
 # Trusty needs C99 mode to enable declarations in for loops
@@ -20,7 +22,8 @@ sed -i "s|#\(ICAL_INSTALL =.*\)|\1 /usr|" src/gcconfig.pri
 # LIBUSB
 #sed -i "s|#\(LIBUSB_INSTALL =\).*|\1 /usr|" src/gcconfig.pri
 sed -i "s|#\(LIBUSB_INSTALL =\).*|\1 /usr/local|" src/gcconfig.pri
-sed -i "s|#\(LIBUSB_LIBS    =.*\)|\1 /usr/local/lib/libusb.a -lusb-1.0 -ldl -ludev|" src/gcconfig.pri
+sed -i "s|#\(LIBUSB_LIBS    =.*\)|\1 -lusb-1.0 -ldl -ludev|" src/gcconfig.pri
+sed -i "s|#\(LIBUSB_USE_V_1 = true.*\)|\1|" src/gcconfig.pri
 # VLC & VIDEO
 sed -i "s|#\(VLC_INSTALL =.*\)|\1 /usr|" src/gcconfig.pri
 sed -i "s|#\(VLC_LIBS    =.*\)|\1 -lvlc|" src/gcconfig.pri

@@ -160,6 +160,9 @@ macx {
     # on mac we use native buttons and video, but have native fullscreen support
     LIBS    += -lobjc -framework IOKit -framework AppKit
 
+    # mac native controls for new mainwindow
+    OBJECTIVE_SOURCES += Gui/NewMainWindowMac.mm
+
     # on mac we use QTKit or AV Foundation
     contains(DEFINES, "GC_VIDEO_AV") {
 
@@ -170,8 +173,9 @@ macx {
 
     } else {
 
-        contains(DEFINES, "GC_VIDEO_NONE") {
+        contains(DEFINES, "GC_VIDEO_NONE")|contains(DEFINES, "GC_VIDEO_QT5") {
 
+            # GC_VIDEO_QT5 will enable Qt5 video support, otherwise
             # we have a blank videowindow, it will do nothing
             HEADERS += Train/VideoWindow.h
             SOURCES += Train/VideoWindow.cpp
@@ -281,8 +285,17 @@ contains(DEFINES, "GC_WANT_PYTHON") {
 
             ## SIP type conversion
             SOURCES += Python/SIP/sipgoldencheetahQString.cpp
-            SOURCES += Python/SIP/sipgoldencheetahPythonDataSeries.cpp
+            SOURCES += Python/SIP/sipgoldencheetahQStringList.cpp
+            SOURCES += Python/SIP/sipgoldencheetahPythonDataSeries.cpp \
+                       Python/SIP/sipgoldencheetahPythonXDataSeries.cpp
             DEFINES += GC_HAVE_PYTHON
+
+            ## Python data processors
+            HEADERS += FileIO/FixPyScriptsDialog.h FileIO/FixPySettings.h FileIO/FixPyRunner.h \
+                       FileIO/FixPyScript.h FileIO/FixPyDataProcessor.h
+
+            SOURCES += FileIO/FixPyScriptsDialog.cpp FileIO/FixPySettings.cpp FileIO/FixPyRunner.cpp \
+                       FileIO/FixPyDataProcessor.cpp
 
          } else {
             # QT5 but not 5.5 or higher
@@ -424,8 +437,11 @@ contains(DEFINES, "GC_WANT_R") {
     isEmpty(LIBUSB_INCLUDE) { LIBUSB_INCLUDE = $${LIBUSB_INSTALL}/include }
     isEmpty(LIBUSB_LIBS)    {
         # needs fixing for msvc toolchain
-        unix  { LIBUSB_LIBS = -L$${LIBUSB_INSTALL}/lib -lusb }
-        win32 { LIBUSB_LIBS = -L$${LIBUSB_INSTALL}/lib/gcc -lusb }
+        _LIBUSB_GCC_LIBNAME = usb
+        isEqual(LIBUSB_USE_V_1, true) _LIBUSB_GCC_LIBNAME = usb-1.0
+
+        unix  { LIBUSB_LIBS = -L$${LIBUSB_INSTALL}/lib -l$${_LIBUSB_GCC_LIBNAME} }
+        win32 { LIBUSB_LIBS = -L$${LIBUSB_INSTALL}/lib/gcc -l$${_LIBUSB_GCC_LIBNAME} }
     }
 
     DEFINES     += GC_HAVE_LIBUSB
@@ -433,10 +449,21 @@ contains(DEFINES, "GC_WANT_R") {
     LIBS        += $${LIBUSB_LIBS}
 
     # lots of dependents
-    SOURCES     += Train/LibUsb.cpp Train/EzUsb.c Train/Fortius.cpp Train/FortiusController.cpp \
+    SOURCES     += Train/LibUsb.cpp Train/Fortius.cpp Train/FortiusController.cpp \
                    Train/Imagic.cpp Train/ImagicController.cpp
-    HEADERS     += Train/LibUsb.h Train/EzUsb.h Train/Fortius.cpp Train/FortiusController.h \
+    HEADERS     += Train/LibUsb.h Train/Fortius.cpp Train/FortiusController.h \
                    Train/Imagic.h Train/ImagicController.h
+
+    !isEqual(LIBUSB_USE_V_1, true) {
+        SOURCES += Train/EzUsb.c
+        HEADERS += Train/EzUsb.h
+    }
+
+    isEqual(LIBUSB_USE_V_1, true) {
+        DEFINES += LIBUSB_V_1
+        SOURCES += Train/EzUsb-1.0.c
+        HEADERS += Train/EzUsb-1.0.h
+    }
 }
 
 
@@ -556,10 +583,12 @@ equals(CloudDB, active) {
 
             HEADERS += Cloud/CloudDBChart.h Cloud/CloudDBCommon.h \
                        Cloud/CloudDBCurator.h Cloud/CloudDBStatus.h \
-                       Cloud/CloudDBVersion.h Cloud/CloudDBTelemetry.h
+                       Cloud/CloudDBVersion.h Cloud/CloudDBTelemetry.h \
+                       Cloud/CloudDBUserMetric.h
             SOURCES += Cloud/CloudDBChart.cpp Cloud/CloudDBCommon.cpp \
                        Cloud/CloudDBCurator.cpp Cloud/CloudDBStatus.cpp \
-                       Cloud/CloudDBVersion.cpp Cloud/CloudDBTelemetry.cpp
+                       Cloud/CloudDBVersion.cpp Cloud/CloudDBTelemetry.cpp \
+                       Cloud/CloudDBUserMetric.cpp
 
             DEFINES += GC_HAS_CLOUD_DB
 
@@ -618,6 +647,8 @@ greaterThan(QT_MAJOR_VERSION, 4) {
     HEADERS += Train/Kettler.h Train/KettlerController.h Train/KettlerConnection.h
     SOURCES += Train/KettlerRacer.cpp Train/KettlerRacerController.cpp Train/KettlerRacerConnection.cpp
     HEADERS += Train/KettlerRacer.h Train/KettlerRacerController.h Train/KettlerRacerConnection.h
+    SOURCES += Train/Ergofit.cpp Train/ErgofitController.cpp Train/ErgofitConnection.cpp
+    HEADERS += Train/Ergofit.h Train/ErgofitController.h Train/ErgofitConnection.h
     SOURCES += Train/DaumController.cpp Train/Daum.cpp
     HEADERS += Train/DaumController.h Train/Daum.h
 
@@ -626,6 +657,8 @@ greaterThan(QT_MAJOR_VERSION, 4) {
         QT += bluetooth
         HEADERS += Train/BT40Controller.h Train/BT40Device.h
         SOURCES += Train/BT40Controller.cpp Train/BT40Device.cpp
+        HEADERS += Train/VMProConfigurator.h Train/VMProWidget.h
+        SOURCES += Train/VMProConfigurator.cpp Train/VMProWidget.cpp
     }
 
     # qt charts is officially supported from QT5.8 or higher
@@ -637,6 +670,11 @@ greaterThan(QT_MAJOR_VERSION, 4) {
         DEFINES += GC_HAVE_OVERVIEW
         HEADERS += Charts/OverviewWindow.h
         SOURCES += Charts/OverviewWindow.cpp
+
+        # generic chart
+        DEFINES += GC_HAVE_GENERIC
+        HEADERS += Charts/UserChart.h Charts/UserChartData.h Charts/GenericChart.h Charts/GenericPlot.h Charts/GenericSelectTool.h Charts/GenericLegend.h
+        SOURCES += Charts/UserChart.cpp Charts/UserChartData.cpp Charts/GenericChart.cpp Charts/GenericPlot.cpp Charts/GenericSelectTool.cpp Charts/GenericLegend.cpp
 
     }
 }
@@ -692,7 +730,7 @@ HEADERS += Core/Athlete.h Core/Context.h Core/DataFilter.h Core/FreeSearch.h Cor
            Core/IdleTimer.h Core/IntervalItem.h Core/NamedSearch.h Core/RideCache.h Core/RideCacheModel.h Core/RideDB.h \
            Core/RideItem.h Core/Route.h Core/RouteParser.h Core/Season.h Core/SeasonParser.h Core/Secrets.h Core/Settings.h \
            Core/Specification.h Core/TimeUtils.h Core/Units.h Core/UserData.h Core/Utils.h \
-           Core/Measures.h Core/BodyMeasures.h Core/HrvMeasures.h Core/BlinnSolver.h
+           Core/Measures.h Core/BodyMeasures.h Core/HrvMeasures.h Core/BlinnSolver.h Core/Quadtree.h
 
 # device and file IO or edit
 HEADERS += FileIO/ArchiveFile.h FileIO/AthleteBackup.h  FileIO/Bin2RideFile.h FileIO/BinRideFile.h \
@@ -707,16 +745,16 @@ HEADERS += FileIO/ArchiveFile.h FileIO/AthleteBackup.h  FileIO/Bin2RideFile.h Fi
            FileIO/SlfParser.h FileIO/SlfRideFile.h FileIO/SmfParser.h FileIO/SmfRideFile.h FileIO/SmlParser.h \
            FileIO/SmlRideFile.h FileIO/SrdRideFile.h FileIO/SrmRideFile.h FileIO/SyncRideFile.h FileIO/TcxParser.h \
            FileIO/TcxRideFile.h FileIO/TxtRideFile.h FileIO/WkoRideFile.h FileIO/XDataDialog.h FileIO/XDataTableModel.h \
-           FileIO/FilterHRV.h FileIO/HrvMeasuresCsvImport.h FileIO/LocationInterpolation.h
+           FileIO/FilterHRV.h FileIO/HrvMeasuresCsvImport.h FileIO/LocationInterpolation.h FileIO/TTSReader.h
 
 # GUI components
 HEADERS += Gui/AboutDialog.h Gui/AddIntervalDialog.h Gui/AnalysisSidebar.h Gui/ChooseCyclistDialog.h Gui/ColorButton.h \
            Gui/Colors.h Gui/CompareDateRange.h Gui/CompareInterval.h Gui/ComparePane.h Gui/ConfigDialog.h Gui/DiarySidebar.h \
-           Gui/DragBar.h Gui/EstimateCPDialog.h Gui/GcCrashDialog.h Gui/GcScopeBar.h Gui/GcSideBarItem.h Gui/GcToolBar.h Gui/GcWindowLayout.h \
+           Gui/DragBar.h Gui/EstimateCPDialog.h Gui/GcCrashDialog.h Gui/GcSideBarItem.h Gui/GcToolBar.h Gui/GcWindowLayout.h \
            Gui/GcWindowRegistry.h Gui/GenerateHeatMapDialog.h Gui/GProgressDialog.h Gui/HelpWhatsThis.h Gui/HelpWindow.h \
            Gui/IntervalTreeView.h Gui/LTMSidebar.h Gui/MainWindow.h Gui/NewCyclistDialog.h Gui/Pages.h Gui/RideNavigator.h Gui/RideNavigatorProxy.h \
            Gui/SaveDialogs.h Gui/SearchBox.h Gui/SearchFilterBox.h Gui/SolveCPDialog.h Gui/Tab.h Gui/TabView.h Gui/ToolsRhoEstimator.h \
-           Gui/Views.h Gui/BatchExportDialog.h Gui/DownloadRideDialog.h Gui/ManualRideDialog.h \
+           Gui/Views.h Gui/BatchExportDialog.h Gui/DownloadRideDialog.h Gui/ManualRideDialog.h Gui/NewMainWindow.h Gui/NewSideBar.h \
            Gui/MergeActivityWizard.h Gui/RideImportWizard.h Gui/SplitActivityWizard.h Gui/SolverDisplay.h
 
 # metrics and models
@@ -738,7 +776,7 @@ HEADERS += Train/AddDeviceWizard.h Train/CalibrationData.h Train/ComputrainerCon
            Train/DeviceTypes.h Train/DialWindow.h Train/ErgDBDownloadDialog.h Train/ErgDB.h Train/ErgFile.h Train/ErgFilePlot.h \
            Train/Library.h Train/LibraryParser.h Train/MeterWidget.h Train/NullController.h Train/RealtimeController.h \
            Train/RealtimeData.h Train/RealtimePlot.h Train/RealtimePlotWindow.h Train/RemoteControl.h Train/SpinScanPlot.h \
-           Train/SpinScanPlotWindow.h Train/SpinScanPolarPlot.h Train/GarminServiceHelper.h Train/PhysicsUtility.h
+           Train/SpinScanPlotWindow.h Train/SpinScanPolarPlot.h Train/GarminServiceHelper.h Train/PhysicsUtility.h Train/BicycleSim.h
 
 greaterThan(QT_MAJOR_VERSION, 4) {
     HEADERS += Train/TodaysPlanWorkoutDownload.h
@@ -786,7 +824,7 @@ SOURCES += Core/Athlete.cpp Core/Context.cpp Core/DataFilter.cpp Core/FreeSearch
            Core/IntervalItem.cpp Core/main.cpp Core/NamedSearch.cpp Core/RideCache.cpp Core/RideCacheModel.cpp Core/RideItem.cpp \
            Core/Route.cpp Core/RouteParser.cpp Core/Season.cpp Core/SeasonParser.cpp Core/Settings.cpp Core/Specification.cpp \
            Core/TimeUtils.cpp Core/Units.cpp Core/UserData.cpp Core/Utils.cpp \
-           Core/Measures.cpp Core/BodyMeasures.cpp Core/HrvMeasures.cpp  Core/BlinnSolver.cpp
+           Core/Measures.cpp Core/BodyMeasures.cpp Core/HrvMeasures.cpp Core/BlinnSolver.cpp Core/Quadtree.cpp
 
 ## File and Device IO and Editing
 SOURCES += FileIO/ArchiveFile.cpp FileIO/AthleteBackup.cpp FileIO/Bin2RideFile.cpp FileIO/BinRideFile.cpp \
@@ -805,16 +843,16 @@ SOURCES += FileIO/ArchiveFile.cpp FileIO/AthleteBackup.cpp FileIO/Bin2RideFile.c
            FileIO/SmlRideFile.cpp FileIO/Snippets.cpp FileIO/SrdRideFile.cpp FileIO/SrmRideFile.cpp FileIO/SyncRideFile.cpp \
            FileIO/TacxCafRideFile.cpp FileIO/TcxParser.cpp FileIO/TcxRideFile.cpp FileIO/TxtRideFile.cpp FileIO/WkoRideFile.cpp \
            FileIO/XDataDialog.cpp FileIO/XDataTableModel.cpp FileIO/FilterHRV.cpp FileIO/HrvMeasuresCsvImport.cpp \
-           FileIO/LocationInterpolation.cpp
+           FileIO/LocationInterpolation.cpp FileIO/TTSReader.cpp
 
 ## GUI Elements and Dialogs
 SOURCES += Gui/AboutDialog.cpp Gui/AddIntervalDialog.cpp Gui/AnalysisSidebar.cpp Gui/ChooseCyclistDialog.cpp Gui/ColorButton.cpp \
            Gui/Colors.cpp Gui/CompareDateRange.cpp Gui/CompareInterval.cpp Gui/ComparePane.cpp Gui/ConfigDialog.cpp Gui/DiarySidebar.cpp \
-           Gui/DragBar.cpp Gui/EstimateCPDialog.cpp Gui/GcCrashDialog.cpp Gui/GcScopeBar.cpp Gui/GcSideBarItem.cpp Gui/GcToolBar.cpp Gui/GcWindowLayout.cpp \
+           Gui/DragBar.cpp Gui/EstimateCPDialog.cpp Gui/GcCrashDialog.cpp Gui/GcSideBarItem.cpp Gui/GcToolBar.cpp Gui/GcWindowLayout.cpp \
            Gui/GcWindowRegistry.cpp Gui/GenerateHeatMapDialog.cpp Gui/GProgressDialog.cpp Gui/HelpWhatsThis.cpp Gui/HelpWindow.cpp \
            Gui/IntervalTreeView.cpp Gui/LTMSidebar.cpp Gui/MainWindow.cpp Gui/NewCyclistDialog.cpp Gui/Pages.cpp Gui/RideNavigator.cpp Gui/SaveDialogs.cpp \
            Gui/SearchBox.cpp Gui/SearchFilterBox.cpp Gui/SolveCPDialog.cpp Gui/Tab.cpp Gui/TabView.cpp Gui/ToolsRhoEstimator.cpp Gui/Views.cpp \
-           Gui/BatchExportDialog.cpp Gui/DownloadRideDialog.cpp Gui/ManualRideDialog.cpp Gui/EditUserMetricDialog.cpp \
+           Gui/BatchExportDialog.cpp Gui/DownloadRideDialog.cpp Gui/ManualRideDialog.cpp Gui/EditUserMetricDialog.cpp Gui/NewMainWindow.cpp Gui/NewSideBar.cpp \
            Gui/MergeActivityWizard.cpp Gui/RideImportWizard.cpp Gui/SplitActivityWizard.cpp Gui/SolverDisplay.cpp
 
 ## Models and Metrics
@@ -844,7 +882,7 @@ SOURCES += Train/AddDeviceWizard.cpp Train/CalibrationData.cpp Train/Computraine
            Train/DeviceTypes.cpp Train/DialWindow.cpp Train/ErgDB.cpp Train/ErgDBDownloadDialog.cpp Train/ErgFile.cpp Train/ErgFilePlot.cpp \
            Train/Library.cpp Train/LibraryParser.cpp Train/MeterWidget.cpp Train/NullController.cpp Train/RealtimeController.cpp \
            Train/RealtimeData.cpp Train/RealtimePlot.cpp Train/RealtimePlotWindow.cpp Train/RemoteControl.cpp Train/SpinScanPlot.cpp \
-           Train/SpinScanPlotWindow.cpp Train/SpinScanPolarPlot.cpp Train/GarminServiceHelper.cpp Train/PhysicsUtility.cpp
+           Train/SpinScanPlotWindow.cpp Train/SpinScanPolarPlot.cpp Train/GarminServiceHelper.cpp Train/PhysicsUtility.cpp Train/BicycleSim.cpp
 
 greaterThan(QT_MAJOR_VERSION, 4) {
     SOURCES  += Train/TodaysPlanWorkoutDownload.cpp

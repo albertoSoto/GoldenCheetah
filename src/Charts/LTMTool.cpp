@@ -1900,7 +1900,7 @@ EditMetricDetailDialog::EditMetricDetailDialog(Context *context, LTMTool *ltmToo
     list << "best(cadence, 3600)";
     list << "best(speed, 3600)";
     list << "best(torque, 3600)";
-    list << "best(np, 3600)";
+    list << "best(isopower, 3600)";
     list << "best(xpower, 3600)";
     list << "best(vam, 3600)";
     list << "best(wpk, 3600)";
@@ -2096,6 +2096,7 @@ EditMetricDetailDialog::EditMetricDetailDialog(Context *context, LTMTool *ltmToo
 
     QLabel *color = new QLabel(tr("Color"));
     curveColor = new QPushButton(this);
+    curveColor->setAutoDefault(false);
 
     QLabel *fill = new QLabel(tr("Fill curve"));
     fillCurve = new QCheckBox("", this);
@@ -2194,7 +2195,9 @@ EditMetricDetailDialog::EditMetricDetailDialog(Context *context, LTMTool *ltmToo
     QHBoxLayout *buttonLayout = new QHBoxLayout;
     buttonLayout->addStretch();
     applyButton = new QPushButton(tr("&OK"), this);
+    applyButton->setAutoDefault(false);
     cancelButton = new QPushButton(tr("&Cancel"), this);
+    cancelButton->setAutoDefault(false);
     buttonLayout->addWidget(cancelButton);
     buttonLayout->addWidget(applyButton);
     mainLayout->addLayout(buttonLayout);
@@ -2704,6 +2707,9 @@ LTMTool::setFilter(QStringList files)
 DataFilterEdit::DataFilterEdit(QWidget *parent, Context *context)
 : QTextEdit(parent), c(0), context(context)
 {
+    QFont font;
+    font.setFamily("Courier");
+    setFont(font);
     connect(this, SIGNAL(cursorPositionChanged()), this, SLOT(checkErrors()));
 }
 
@@ -2719,8 +2725,8 @@ DataFilterEdit::checkErrors()
     QStringList errors = checker.check(toPlainText());
     checker.colorSyntax(document(), textCursor().position()); // syntax + error highlighting
 
-    // need to fixup for errors!
-    // XXX next commit
+    // even if no errors need to tell folks
+    emit syntaxErrors(errors);
 }
 
 bool

@@ -3,9 +3,11 @@ set -ev
 ## try early just to check, can delete later
 date
 brew update
-brew install qt5
+brew unlink python@2 # to avoid conflicts with qt/libical dependence on python
+brew upgrade qt5
+/usr/local/opt/qt5/bin/qmake --version
 brew install libical
-brew install libusb libusb-compat
+brew upgrade libusb
 brew install srmio
 brew install libsamplerate
 rm -rf '/usr/local/include/c++'

@@ -615,7 +615,8 @@ RideSummaryWindow::htmlSummary()
         pmc = context->athlete->getPMCFor(
                                     rideItem->isSwim ? "swimscore" :
                                     rideItem->isRun ? "govss" :
-                                    "coggan_tss");
+                                    rideItem->isBike ? "coggan_tss" :
+                                    "triscore");
     } else {
         // For data range use base metric for single sport if homogeneous
         // or combined if mixed
@@ -1158,9 +1159,11 @@ RideSummaryWindow::htmlSummary()
         int runs = 0;
         int rides = 0;
         int swims = 0;
+        int xtrains = 0;
         int totalruns = 0;
         int totalrides = 0;
         int totalswims = 0;
+        int totalxtrains = 0;
 
         foreach (RideItem *item, context->athlete->rideCache->rides()) {
 
@@ -1169,8 +1172,10 @@ RideSummaryWindow::htmlSummary()
                 totalruns++;
             } else if (item->isSwim) {
                 totalswims++;
-            } else {
+            } else if (item->isBike) {
                 totalrides++;
+            } else {
+                totalxtrains++;
             }
 
             if (!specification.pass(item)) continue;
@@ -1180,14 +1185,16 @@ RideSummaryWindow::htmlSummary()
                 runs++;
             } else if (item->isSwim) {
                 swims++;
-            } else {
+            } else if (item->isBike) {
                 rides++;
+            } else {
+                xtrains++;
             }
             activities++;
         }
 
         // Select relevant metrics for activities of each sport
-        QStringList rideMetrics, runMetrics, swimMetrics;
+        QStringList rideMetrics, runMetrics, swimMetrics, xtrainMetrics;
         for (j = 0; j< metricColumn.count(); ++j) {
             QString symbol = metricColumn[j];
             const RideMetric *m = factory.rideMetric(symbol);
@@ -1195,6 +1202,7 @@ RideSummaryWindow::htmlSummary()
             if (context->athlete->rideCache->isMetricRelevantForRides(specification, m, RideCache::OnlyRides)) rideMetrics << symbol;
             if (context->athlete->rideCache->isMetricRelevantForRides(specification, m, RideCache::OnlyRuns)) runMetrics << symbol;
             if (context->athlete->rideCache->isMetricRelevantForRides(specification, m, RideCache::OnlySwims)) swimMetrics << symbol;
+            if (context->athlete->rideCache->isMetricRelevantForRides(specification, m, RideCache::OnlyXtrains)) xtrainMetrics << symbol;
         }
 
         // some people have a LOT of metrics, so we only show so many since
@@ -1207,6 +1215,7 @@ RideSummaryWindow::htmlSummary()
         int rideCols = rideMetrics.count() > 7 ? 7 : rideMetrics.count();
         int runCols = runMetrics.count() > 7 ? 7 : runMetrics.count();
         int swimCols = swimMetrics.count() > 7 ? 7 : swimMetrics.count();
+        int xtrainCols = xtrainMetrics.count() > 6 ? 6 : xtrainMetrics.count();
 
         //Rides first
         if (context->ishomefiltered || context->isfiltered || filtered) {
@@ -1278,7 +1287,7 @@ RideSummaryWindow::htmlSummary()
             // apply the filter if there is one active
             if (!specification.pass(ride)) continue;
 
-            if (ride->isRun || ride->isSwim) continue;
+            if (!ride->isBike) continue;
 
             if (even) summary += "<tr>";
             else {
@@ -1407,7 +1416,7 @@ RideSummaryWindow::htmlSummary()
         }
         summary += "</table><br>";
 
-        //Swims Last
+        // and Swims
         if (context->ishomefiltered || context->isfiltered || filtered) {
 
             // "n of x activities" shown in header of list when filtered
@@ -1506,6 +1515,111 @@ RideSummaryWindow::htmlSummary()
         }
         summary += "</table><br>";
 
+        //xtrains last
+        if (context->ishomefiltered || context->isfiltered || filtered) {
+
+            // "n of x activities" shown in header of list when filtered
+            summary += ("<p><h3>" +
+                        QString(tr("%1 of %2")).arg(xtrains).arg(totalxtrains)
+                                           + (totalxtrains == 1 ? tr(" xtrain") : tr(" xtrains")) +
+                        "</h3><p>");
+        } else {
+
+            // just "n activities" shown in header of list when not filtered
+            summary += ("<p><h3>" +
+                        QString("%1").arg(xtrains) + (xtrains == 1 ? tr(" xtrain") : tr(" xtrains")) +
+                        "</h3><p>");
+        }
+
+        // table of activities
+        summary += "<table align=\"center\" width=\"80%\" border=\"0\">";
+
+        // header row 1 - name
+        summary += "<tr>";
+        summary += tr("<td align=\"center\">Date</td>");
+        summary += tr("<td align=\"center\">Sport</td>");
+        for (j = 0; j< totalCols; ++j) {
+            QString symbol = rtotalColumn[j];
+            const RideMetric *m = factory.rideMetric(symbol);
+
+            summary += QString("<td align=\"center\">%1</td>").arg(addTooltip(m->name(), m->description()));
+        }
+        for (j = 0; j< xtrainCols; ++j) {
+            QString symbol = xtrainMetrics[j];
+            const RideMetric *m = factory.rideMetric(symbol);
+
+            summary += QString("<td align=\"center\">%1</td>").arg(addTooltip(m->name(), m->description()));
+        }
+        summary += "</tr>";
+
+        // header row 2 - units
+        summary += "<tr>";
+        summary += tr("<td align=\"center\"></td>"); // date no units
+        summary += tr("<td align=\"center\"></td>"); // Sport no units
+        for (j = 0; j< totalCols; ++j) {
+            QString symbol = rtotalColumn[j];
+            const RideMetric *m = factory.rideMetric(symbol);
+
+            QString units = m->units(useMetricUnits);
+            if (units == "seconds" || units == tr("seconds")) units = "";
+            summary += QString("<td align=\"center\">%1</td>").arg(units);
+        }
+        for (j = 0; j< xtrainCols; ++j) {
+            QString symbol = xtrainMetrics[j];
+            const RideMetric *m = factory.rideMetric(symbol);
+
+            QString units = m->units(useMetricUnits);
+            if (units == "seconds" || units == tr("seconds")) units = "";
+            summary += QString("<td align=\"center\">%1</td>").arg(units);
+        }
+        summary += "</tr>";
+
+        // activities 1 per row - in reverse order
+        even = false;
+
+        // iterate once again
+        ridelist.toBack();
+        while (ridelist.hasPrevious()) {
+
+            RideItem *ride = ridelist.previous();
+
+            // apply the filter if there is one active
+            if (!specification.pass(ride)) continue;
+
+            if (ride->isBike || ride->isRun || ride->isSwim) continue;
+
+            if (even) summary += "<tr>";
+            else {
+                    summary += "<tr bgcolor='" + altColor.name() + "'>";
+            }
+            even = !even;
+
+            // date of xtrain
+            summary += QString("<td align=\"center\">%1</td>")
+                       .arg(ride->dateTime.date().toString(tr("dd MMM yyyy")));
+
+            // Sport of xtrain
+            summary += QString("<td align=\"center\">%1</td>")
+                       .arg(ride->getText("Sport", ""));
+
+            for (j = 0; j< totalCols; ++j) {
+                QString symbol = rtotalColumn[j];
+
+                // get this value
+                QString value = ride->getStringForSymbol(symbol,useMetricUnits);
+                summary += QString("<td align=\"center\">%1</td>").arg(value);
+            }
+            for (j = 0; j< xtrainCols; ++j) {
+                QString symbol = xtrainMetrics[j];
+
+                // get this value
+                QString value = ride->getStringForSymbol(symbol,useMetricUnits);
+                summary += QString("<td align=\"center\">%1</td>").arg(value);
+            }
+            summary += "</tr>";
+        }
+        summary += "</table><br>";
+
     }
 
     // summarise errors reading file if it was a ride summary
@@ -1517,6 +1631,12 @@ RideSummaryWindow::htmlSummary()
             summary += " <li>" + i.next();
         summary += "</ul>";
     }
+
+    // add link to view on Strava if was downloaded from there (StravaID will be set)
+    if (ridesummary && rideItem && rideItem->ride() && rideItem->ride()->getTag("StravaID","") != "") {
+        summary += "<a href=\"https://www.strava.com/activities/" + rideItem->ride()->getTag("StravaID","") + "\">View on Strava</a>";
+    }
+
     summary += "<br></center>";
 
     return summary;
@@ -1875,7 +1995,7 @@ RideSummaryWindow::htmlCompareSummary() const
             nActivities++;
             if (metrics->isRun) nRuns++;
             else if (metrics->isSwim) nSwims++;
-            else nRides++;
+            else if (metrics->isBike) nRides++;
         }
 
         //

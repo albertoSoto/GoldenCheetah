@@ -19,6 +19,7 @@
 #include "Context.h"
 #include "Athlete.h"
 #include "MainWindow.h"
+#include "NewMainWindow.h"
 #include "Settings.h"
 #include "CloudService.h"
 #include "TrainDB.h"
@@ -26,6 +27,7 @@
 #include "GcUpgrade.h"
 #include "IdleTimer.h"
 #include "PowerProfile.h"
+#include "GcCrashDialog.h" // for versionHTML
 
 #include <QApplication>
 #include <QDesktopWidget>
@@ -45,6 +47,7 @@
 #endif
 #ifdef GC_WANT_PYTHON
 #include "PythonEmbed.h"
+#include "FixPySettings.h"
 #endif
 #include <signal.h>
 
@@ -94,6 +97,9 @@ void terminate(int code)
 
     // tidy up static stuff (our globals) that are not tied
     // to a mainwindow instance (which will be deleted on close)
+#ifdef GC_WANT_PYTHON
+    delete fixPySettings;
+#endif
     delete appsettings;
     application->exit();
 
@@ -197,16 +203,26 @@ main(int argc, char *argv[])
     bool server = false;
     nogui = false;
     bool help = false;
+    bool newgui = false;
 
     // honour command line switches
     foreach (QString arg, sargs) {
 
-        // help or version requested
-        if (arg == "--help" || arg == "--version") {
+        // help, usage or version requested, basic information
+        if (arg == "--help" || arg == "--usage" || arg == "--version") {
 
             help = true;
-            fprintf(stderr, "GoldenCheetah %s (%d)\nusage: GoldenCheetah [[directory] athlete]\n\n", VERSION_STRING, VERSION_LATEST);
-            fprintf(stderr, "--help or --version to print this message and exit\n");
+            fprintf(stderr, "GoldenCheetah %s (%d)\n", VERSION_STRING, VERSION_LATEST);
+
+        }
+
+        // help or usage requrested, additional information
+        if (arg == "--help" || arg == "--usage") {
+
+            fprintf(stderr, "usage: GoldenCheetah [[directory] athlete]\n\n");
+            fprintf(stderr, "--help or --usage   to print this message and exit\n");
+            fprintf(stderr, "--version           to print detailed version information and exit\n");
+            fprintf(stderr, "--newgui            to open the new gui (WIP)\n");
 #ifdef GC_WANT_HTTP
             fprintf(stderr, "--server            to run as an API server\n");
 #endif
@@ -227,12 +243,25 @@ main(int argc, char *argv[])
             fprintf (stderr, "\nSpecify the folder and/or athlete to open on startup\n");
             fprintf(stderr, "If no parameters are passed it will reopen the last athlete.\n\n");
 
+        // version requested, additional information
+        } else if (arg == "--version") {
+
+            QString html = GcCrashDialog::versionHTML();
+            html.replace("</td><td>", ": "); // to maintain colums in one line
+            QString text = QTextDocumentFragment::fromHtml(html).toPlainText();
+            QByteArray ba = text.toLocal8Bit();
+            const char *c_str = ba.data();
+            fprintf(stderr, "\n%s\n\n", c_str);
+
+        } else if (arg == "--newgui") {
+            newgui = true;
+
         } else if (arg == "--server") {
 #ifdef GC_WANT_HTTP
-                nogui = server = true;
+            nogui = server = true;
 #else
-                fprintf(stderr, "HTTP support not compiled in, exiting.\n");
-                exit(1);
+            fprintf(stderr, "HTTP support not compiled in, exiting.\n");
+            exit(1);
 #endif
 
 #ifdef GC_WANT_PYTHON
@@ -649,7 +678,7 @@ main(int argc, char *argv[])
 
         // lets attempt to open as asked/remembered
         bool anyOpened = false;
-        if (lastOpened != QVariant()) {
+        if (lastOpened != QVariant() && !newgui) {
             QStringList list = lastOpened.toStringList();
             QStringListIterator i(list);
             while (i.hasNext()) {
@@ -676,7 +705,7 @@ main(int argc, char *argv[])
         // ack, didn't manage to open an athlete
         // and the upgradeWarning was
         // lets ask the user which / create a new one
-        if (!anyOpened) {
+        if (!anyOpened && !newgui) {
             ChooseCyclistDialog d(home, true);
             d.setModal(true);
 
@@ -706,6 +735,12 @@ main(int argc, char *argv[])
                 delete trainDB;
                 terminate(0);
             }
+        }
+
+        // start with the new gui, a prototype in progress
+        if (newgui) {
+            NewMainWindow *newgui = new NewMainWindow(application);
+            newgui->show();
         }
 
         ret=application->exec();
